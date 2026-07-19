@@ -1,0 +1,314 @@
+const { query } = require('../config/db');
+
+// @desc    Get all financial records (paginated with search & filters)
+// @route   GET /api/records
+// @access  Private
+const getRecords = async (req, res, next) => {
+  try {
+    const {
+      search,
+      department,
+      status,
+      fraud_status,
+      minRisk,
+      maxRisk,
+      page = 1,
+      limit = 10,
+      sortBy = 'date',
+      sortOrder = 'DESC',
+    } = req.query;
+
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    
+    let queryText = 'SELECT * FROM financial_records WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+
+    // Search filter
+    if (search) {
+      queryText += ` AND (
+        record_number ILIKE $${paramIndex} OR 
+        vendor ILIKE $${paramIndex} OR 
+        invoice_number ILIKE $${paramIndex} OR 
+        purpose ILIKE $${paramIndex}
+      )`;
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    // Department filter
+    if (department) {
+      queryText += ` AND department = $${paramIndex}`;
+      params.push(department);
+      paramIndex++;
+    }
+
+    // Status filter
+    if (status) {
+      queryText += ` AND status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+
+    // Fraud status filter
+    if (fraud_status) {
+      queryText += ` AND fraud_status = $${paramIndex}`;
+      params.push(fraud_status);
+      paramIndex++;
+    }
+
+    // Risk score range
+    if (minRisk) {
+      queryText += ` AND risk_score >= $${paramIndex}`;
+      params.push(parseInt(minRisk));
+      paramIndex++;
+    }
+    if (maxRisk) {
+      queryText += ` AND risk_score <= $${paramIndex}`;
+      params.push(parseInt(maxRisk));
+      paramIndex++;
+    }
+
+    // Get total count before pagination
+    const countQueryText = queryText.replace('SELECT *', 'SELECT COUNT(*)');
+    const countRes = await query(countQueryText, params);
+    const totalRecords = parseInt(countRes.rows[0].count);
+
+    // Sorting
+    const validSortFields = ['date', 'amount', 'risk_score', 'record_number'];
+    const actualSortBy = validSortFields.includes(sortBy) ? sortBy : 'date';
+    const actualSortOrder = sortOrder.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    queryText += ` ORDER BY ${actualSortBy} ${actualSortOrder}`;
+
+    // Pagination
+    queryText += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(parseInt(limit));
+    params.push(offset);
+
+    const recordsRes = await query(queryText, params);
+
+    res.status(200).json({
+      records: recordsRes.rows,
+      pagination: {
+        total: totalRecords,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(totalRecords / parseInt(limit)),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get record by ID
+// @route   GET /api/records/:id
+// @access  Private
+const getRecordById = async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const recordRes = await query('SELECT * FROM financial_records WHERE id = $1', [id]);
+    const record = recordRes.rows[0];
+
+    if (!record) {
+      res.status(404);
+      return next(new Error('Financial record not found'));
+    }
+
+    res.status(200).json(record);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create new financial record
+// @route   POST /api/records
+// @access  Private
+const createRecord = async (req, res, next) => {
+  const {
+    department,
+    vendor,
+    invoice_number,
+    payment_method,
+    amount,
+    purpose,
+    date,
+    status,
+    risk_score = 0,
+    fraud_status = 'unflagged',
+    fraud_reasons = []
+  } = req.body;
+
+  if (!department || !vendor || !invoice_number || !payment_method || !amount || !purpose || !date || !status) {
+    res.status(400);
+    return next(new Error('Please fill in all required fields'));
+  }
+
+  try {
+    // Generate new record number
+    const countRes = await query('SELECT COUNT(*) FROM financial_records');
+    const count = parseInt(countRes.rows[0].count) + 1;
+    const record_number = `REC-2026-${String(count).padStart(4, '0')}`;
+
+    // Insert record
+    const insertQuery = `
+      INSERT INTO financial_records (
+        record_number, department, vendor, invoice_number, payment_method, 
+        amount, purpose, date, status, risk_score, fraud_status, fraud_reasons
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      RETURNING *;
+    `;
+
+    const recordRes = await query(insertQuery, [
+      record_number,
+      department,
+      vendor,
+      invoice_number,
+      payment_method,
+      amount,
+      purpose,
+      date,
+      status,
+      risk_score,
+      fraud_status,
+      fraud_reasons
+    ]);
+
+    const newRecord = recordRes.rows[0];
+
+    // If new record is created with 'flagged' status or risk_score >= 70, auto create a fraud alert
+    if (newRecord.fraud_status === 'flagged' || newRecord.risk_score >= 70) {
+      // Ensure status is flagged
+      if (newRecord.fraud_status !== 'flagged') {
+        await query('UPDATE financial_records SET fraud_status = $1 WHERE id = $2', ['flagged', newRecord.id]);
+        newRecord.fraud_status = 'flagged';
+      }
+
+      const alertReasons = newRecord.fraud_reasons.length > 0 ? newRecord.fraud_reasons : ['High risk score manual creation'];
+      await query(
+        'INSERT INTO fraud_alerts (financial_record_id, risk_score, reasons, status) VALUES ($1, $2, $3, $4)',
+        [newRecord.id, newRecord.risk_score, alertReasons, 'New']
+      );
+    }
+
+    res.status(201).json(newRecord);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update financial record
+// @route   PUT /api/records/:id
+// @access  Private
+const updateRecord = async (req, res, next) => {
+  const { id } = req.params;
+  const {
+    department,
+    vendor,
+    invoice_number,
+    payment_method,
+    amount,
+    purpose,
+    date,
+    status,
+    risk_score,
+    fraud_status,
+    fraud_reasons
+  } = req.body;
+
+  try {
+    const recordCheck = await query('SELECT * FROM financial_records WHERE id = $1', [id]);
+    if (recordCheck.rows.length === 0) {
+      res.status(404);
+      return next(new Error('Financial record not found'));
+    }
+
+    const currentRecord = recordCheck.rows[0];
+
+    const updateQuery = `
+      UPDATE financial_records 
+      SET 
+        department = COALESCE($1, department),
+        vendor = COALESCE($2, vendor),
+        invoice_number = COALESCE($3, invoice_number),
+        payment_method = COALESCE($4, payment_method),
+        amount = COALESCE($5, amount),
+        purpose = COALESCE($6, purpose),
+        date = COALESCE($7, date),
+        status = COALESCE($8, status),
+        risk_score = COALESCE($9, risk_score),
+        fraud_status = COALESCE($10, fraud_status),
+        fraud_reasons = COALESCE($11, fraud_reasons)
+      WHERE id = $12
+      RETURNING *;
+    `;
+
+    const recordRes = await query(updateQuery, [
+      department,
+      vendor,
+      invoice_number,
+      payment_method,
+      amount,
+      purpose,
+      date,
+      status,
+      risk_score,
+      fraud_status,
+      fraud_reasons,
+      id
+    ]);
+
+    const updatedRecord = recordRes.rows[0];
+
+    // Handle alert lifecycle based on fraud_status changes
+    if (updatedRecord.fraud_status === 'flagged' && currentRecord.fraud_status === 'unflagged') {
+      // Check if an alert already exists
+      const alertCheck = await query('SELECT * FROM fraud_alerts WHERE financial_record_id = $1', [id]);
+      if (alertCheck.rows.length === 0) {
+        await query(
+          'INSERT INTO fraud_alerts (financial_record_id, risk_score, reasons, status) VALUES ($1, $2, $3, $4)',
+          [
+            id, 
+            updatedRecord.risk_score, 
+            updatedRecord.fraud_reasons.length > 0 ? updatedRecord.fraud_reasons : ['Risk profile updated'], 
+            'New'
+          ]
+        );
+      }
+    } else if (updatedRecord.fraud_status === 'unflagged' && currentRecord.fraud_status !== 'unflagged') {
+      // If downgraded to unflagged, dismiss any active alerts/investigations or set alert to Dismissed
+      await query("UPDATE fraud_alerts SET status = 'Dismissed' WHERE financial_record_id = $1", [id]);
+    }
+
+    res.status(200).json(updatedRecord);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete financial record
+// @route   DELETE /api/records/:id
+// @access  Private/Admin
+const deleteRecord = async (req, res, next) => {
+  const { id } = req.params;
+  try {
+    const recordCheck = await query('SELECT * FROM financial_records WHERE id = $1', [id]);
+    if (recordCheck.rows.length === 0) {
+      res.status(404);
+      return next(new Error('Financial record not found'));
+    }
+
+    await query('DELETE FROM financial_records WHERE id = $1', [id]);
+    res.status(200).json({ message: 'Financial record deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = {
+  getRecords,
+  getRecordById,
+  createRecord,
+  updateRecord,
+  deleteRecord,
+};

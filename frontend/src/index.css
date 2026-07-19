@@ -1,0 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gov-navy text-slate-100 font-sans antialiased overflow-x-hidden;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(28, 37, 65, 0.4) 0px, transparent 50%),
+      radial-gradient(at 100% 0%, rgba(0, 180, 216, 0.1) 0px, transparent 50%),
+      radial-gradient(at 50% 100%, rgba(228, 169, 109, 0.05) 0px, transparent 50%);
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-gov-navy;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gov-blue/50 rounded-full hover:bg-gov-blue;
+  }
+}
+
+/* Custom Glassmorphism Styles */
+.glass-panel {
+  @apply bg-gov-slate/85 backdrop-blur-md border border-gov-blue/20 shadow-xl shadow-black/30;
+}
+
+.glass-card {
+  @apply bg-gov-slate/50 backdrop-blur-sm border border-gov-blue/15 hover:border-gov-blue/30 transition-all duration-300;
+}
+
+.glass-input {
+  @apply bg-gov-navy/70 border border-gov-blue/30 rounded px-4 py-2 text-slate-200 focus:outline-none focus:border-gov-accent transition-colors;
+}
+
+/* Micro-animations */
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.pulse-subtle {
+  animation: pulse-subtle 2s infinite ease-in-out;
+}
