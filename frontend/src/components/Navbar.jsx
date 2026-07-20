@@ -16,6 +16,8 @@ const Navbar = ({ toggleSidebar }) => {
         return 'System Overview Dashboard';
       case '/records':
         return 'Financial Records Directory';
+      case '/upload':
+        return 'Financial Record Ingestion';
       case '/alerts':
         return 'AI Anomaly & Fraud Queue';
       case '/analytics':

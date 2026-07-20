@@ -12,6 +12,7 @@ const recordRoutes = require('./routes/recordRoutes');
 const alertRoutes = require('./routes/alertRoutes');
 const investigationRoutes = require('./routes/investigationRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
 
 // Initialize app
 const app = express();
@@ -42,6 +43,7 @@ app.use('/api/records', recordRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/investigations', investigationRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // Root route
 app.get('/', (req, res) => {

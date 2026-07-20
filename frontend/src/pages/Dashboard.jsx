@@ -32,6 +32,10 @@ const Dashboard = () => {
       }
     };
     fetchSummary();
+
+    const handleMetricsUpdated = () => fetchSummary();
+    window.addEventListener('metricsUpdated', handleMetricsUpdated);
+    return () => window.removeEventListener('metricsUpdated', handleMetricsUpdated);
   }, []);
 
   if (loading) {

@@ -12,6 +12,7 @@ import Alerts from './pages/Alerts';
 import Investigations from './pages/Investigations';
 import InvestigationDetails from './pages/InvestigationDetails';
 import Analytics from './pages/Analytics';
+import UploadRecords from './pages/UploadRecords';
 import Settings from './pages/Settings';
 
 function App() {
@@ -36,6 +37,9 @@ function App() {
 
             {/* Financial Records Catalogue */}
             <Route path="records" element={<Records />} />
+
+            {/* CSV Batch Upload */}
+            <Route path="upload" element={<UploadRecords />} />
 
             {/* Fraud Alerts Queue */}
             <Route path="alerts" element={<Alerts />} />

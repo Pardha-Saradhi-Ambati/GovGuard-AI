@@ -4,6 +4,7 @@ import { AuthContext } from '../context/AuthContext';
 import { 
   LayoutDashboard, 
   FileSpreadsheet, 
+  UploadCloud,
   AlertTriangle, 
   ShieldAlert, 
   BarChart3, 
@@ -20,6 +21,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const menuItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Financial Records', path: '/records', icon: FileSpreadsheet },
+    { name: 'Record Ingestion', path: '/upload', icon: UploadCloud },
     { name: 'Fraud Alerts', path: '/alerts', icon: AlertTriangle },
     { name: 'Investigations', path: '/investigations', icon: ShieldAlert },
     { name: 'Analytics', path: '/analytics', icon: BarChart3 },

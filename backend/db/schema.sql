@@ -29,9 +29,21 @@ CREATE TABLE financial_records (
     purpose TEXT NOT NULL,
     date DATE NOT NULL,
     status VARCHAR(50) NOT NULL CHECK (status IN ('Pending', 'Approved', 'Rejected')),
-    risk_score INTEGER DEFAULT 0 CHECK (risk_score >= 0 AND risk_score <= 100),
-    fraud_status VARCHAR(50) DEFAULT 'unflagged' CHECK (fraud_status IN ('unflagged', 'flagged', 'investigating', 'resolved')),
+    risk_score INTEGER CHECK (risk_score IS NULL OR (risk_score >= 0 AND risk_score <= 100)),
+    fraud_status VARCHAR(50) DEFAULT 'unflagged' CHECK (fraud_status IN ('unflagged', 'flagged', 'investigating', 'resolved', 'Not Evaluated')),
+    ai_status VARCHAR(50) DEFAULT 'Pending Analysis',
     fraud_reasons TEXT[] DEFAULT '{}',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create Import History Table
+CREATE TABLE import_history (
+    id SERIAL PRIMARY KEY,
+    file_name VARCHAR(255) NOT NULL,
+    upload_time TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    imported_records INTEGER DEFAULT 0,
+    duplicate_records INTEGER DEFAULT 0,
+    failed_records INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
