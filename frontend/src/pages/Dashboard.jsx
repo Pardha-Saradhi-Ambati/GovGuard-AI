@@ -72,9 +72,9 @@ const Dashboard = () => {
       color: 'text-gov-crimson bg-gov-crimson/10 border-gov-crimson/20' 
     },
     { 
-      title: 'Investigations Open', 
-      value: summary.totalInvestigations, 
-      desc: user.role === 'Admin' ? 'Total active investigations' : 'Assigned to your desk', 
+      title: 'Active Investigations', 
+      value: summary.activeInvestigations ?? summary.totalInvestigations, 
+      desc: user?.role === 'Admin' ? 'Total active investigations' : 'Assigned to your desk', 
       icon: FileSignature, 
       color: 'text-gov-gold bg-gov-gold/10 border-gov-gold/20' 
     },
@@ -86,7 +86,7 @@ const Dashboard = () => {
       color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' 
     },
     { 
-      title: 'Avg Risk Score', 
+      title: 'Average Risk Score', 
       value: `${summary.averageRiskScore}%`, 
       desc: 'Platform average severity', 
       icon: Gauge, 

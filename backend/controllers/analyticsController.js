@@ -18,14 +18,24 @@ const getDashboardSummary = async (req, res, next) => {
     const highRiskRes = await query('SELECT COUNT(*)::int AS count FROM financial_records WHERE risk_score >= 70');
     const highRiskRecords = highRiskRes.rows[0].count;
 
-    // Investigations (Assigned cases if officer, all if Admin)
-    let investigationsCountQuery = 'SELECT COUNT(*)::int AS count FROM investigations';
-    let investigationsCountParams = [];
+    // Active Investigations (Status = Open, assigned cases if officer, all if Admin)
+    let activeInvestigationsQuery = "SELECT COUNT(*)::int AS count FROM investigations WHERE status = 'Open'";
+    let activeInvestigationsParams = [];
     if (isOfficer) {
-      investigationsCountQuery += ' WHERE officer_id = $1';
-      investigationsCountParams.push(officerId);
+      activeInvestigationsQuery += ' AND officer_id = $1';
+      activeInvestigationsParams.push(officerId);
     }
-    const investigationsRes = await query(investigationsCountQuery, investigationsCountParams);
+    const activeInvestigationsRes = await query(activeInvestigationsQuery, activeInvestigationsParams);
+    const activeInvestigations = activeInvestigationsRes.rows[0].count;
+
+    // Total Investigations (All cases if needed for backward compatibility)
+    let totalInvestigationsQuery = 'SELECT COUNT(*)::int AS count FROM investigations';
+    let totalInvestigationsParams = [];
+    if (isOfficer) {
+      totalInvestigationsQuery += ' WHERE officer_id = $1';
+      totalInvestigationsParams.push(officerId);
+    }
+    const investigationsRes = await query(totalInvestigationsQuery, totalInvestigationsParams);
     const totalInvestigations = investigationsRes.rows[0].count;
 
     // Resolved Cases (Status = Closed)
@@ -89,13 +99,7 @@ const getDashboardSummary = async (req, res, next) => {
           WHEN risk_score >= 70 AND risk_score < 90 THEN 'High (70-89)'
           ELSE 'Critical (90-100)'
         END
-      ORDER BY 
-        CASE 
-          WHEN risk_tier = 'Low (0-39)' THEN 1
-          WHEN risk_tier = 'Medium (40-69)' THEN 2
-          WHEN risk_tier = 'High (70-89)' THEN 3
-          ELSE 4
-        END
+      ORDER BY MIN(risk_score) ASC
     `);
 
     // D. Top Vendors by total amount flagged
@@ -116,6 +120,7 @@ const getDashboardSummary = async (req, res, next) => {
       summary: {
         totalRecords,
         highRiskRecords,
+        activeInvestigations,
         totalInvestigations,
         resolvedCases,
         averageRiskScore,
@@ -132,6 +137,12 @@ const getDashboardSummary = async (req, res, next) => {
   }
 };
 
+// @desc    Get system analytics reports
+// @route   GET /api/analytics/reports
+// @access  Private
+const getReports = getDashboardSummary;
+
 module.exports = {
   getDashboardSummary,
+  getReports,
 };
