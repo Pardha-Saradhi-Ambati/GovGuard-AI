@@ -186,7 +186,12 @@ const Alerts = () => {
                   <div className={`p-4 rounded border bg-gradient-to-r ${scoreColor} mb-4`}>
                     <div className="flex justify-between items-center mb-2">
                       <span className="text-[10px] uppercase font-bold tracking-wider opacity-85">Audit Risk Coefficient</span>
-                      <strong className="text-lg font-black">{alert.risk_score}%</strong>
+                      <div className="flex items-center space-x-3">
+                        {alert.confidence !== undefined && alert.confidence !== null && (
+                          <span className="text-[10px] font-bold opacity-75 uppercase">Confidence: {alert.confidence}%</span>
+                        )}
+                        <strong className="text-lg font-black">{alert.risk_score}%</strong>
+                      </div>
                     </div>
                     {/* Linear Meter */}
                     <div className="w-full bg-gov-navy/60 rounded-full h-1.5 overflow-hidden">
@@ -209,11 +214,23 @@ const Alerts = () => {
                   {/* Highlight reasons */}
                   <div className="p-3 bg-gov-navy/40 border border-gov-blue/10 rounded mb-4">
                     <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Flagged Anomaly Classifications</span>
-                    <ul className="space-y-1.5 text-[11px] text-slate-400 pl-3 list-disc">
-                      {alert.reasons?.map((reason, idx) => (
-                        <li key={idx} className="leading-tight">{reason}</li>
-                      ))}
-                    </ul>
+                    {alert.reasons && alert.reasons.length > 0 ? (
+                      <ul className="space-y-1.5 text-[11px] text-slate-400 pl-3 list-disc">
+                        {alert.reasons.map((reason, idx) => (
+                          <li key={idx} className="leading-tight">{reason}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-[11px] text-slate-500 italic">No significant fraud indicators detected.</p>
+                    )}
+                  </div>
+
+                  {/* Highlight recommendation */}
+                  <div className="p-3 bg-gov-navy/40 border border-gov-blue/10 rounded mb-4">
+                    <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1.5">Actionable Recommendation</span>
+                    <p className="text-[11px] font-semibold text-gov-gold leading-normal">
+                      {alert.recommendation || 'No AI explanation available'}
+                    </p>
                   </div>
                 </div>
 

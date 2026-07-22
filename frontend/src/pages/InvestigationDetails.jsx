@@ -178,25 +178,70 @@ const InvestigationDetails = () => {
             </div>
           </div>
 
-          {/* AI Case Analysis Panel */}
-          <div className="glass-panel p-6 rounded-lg relative overflow-hidden border border-gov-blue/20">
+          {/* AI Fraud Analysis Panel */}
+          <div className="glass-panel p-6 rounded-lg relative overflow-hidden border border-gov-blue/20 space-y-5">
             {/* Header badge */}
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center border-b border-gov-blue/25 pb-3">
               <h3 className="text-xs font-bold text-slate-300 uppercase tracking-widest flex items-center">
                 <Server size={14} className="mr-2 text-gov-accent" />
-                AI Generated Case Narrative
+                AI Fraud Analysis
               </h3>
               <span className="text-[9px] text-gov-accent bg-gov-accent/10 border border-gov-accent/20 px-2 py-0.5 rounded font-black tracking-wider uppercase">
-                Phase 1 Simulation
+                Diagnostic Output
               </span>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed font-medium bg-gov-navy/40 p-4 border border-gov-blue/10 rounded">
-              {caseData.ai_summary}
-            </p>
+            {/* Core Metrics Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-3 bg-gov-navy/40 border border-gov-blue/10 rounded">
+                <span className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Risk Score</span>
+                <strong className="text-base text-gov-crimson font-black">{caseData.risk_score}%</strong>
+              </div>
+              <div className="p-3 bg-gov-navy/40 border border-gov-blue/10 rounded">
+                <span className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Prediction Tier</span>
+                <strong className="text-xs text-slate-200 truncate block mt-0.5 uppercase tracking-wider font-bold">
+                  {caseData.prediction || 'Not Evaluated'}
+                </strong>
+              </div>
+              <div className="p-3 bg-gov-navy/40 border border-gov-blue/10 rounded">
+                <span className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">AI Confidence</span>
+                <strong className="text-base text-gov-accent font-black">
+                  {caseData.confidence !== undefined && caseData.confidence !== null ? `${caseData.confidence}%` : 'N/A'}
+                </strong>
+              </div>
+            </div>
 
-            <div className="mt-3 text-[10px] text-slate-500 italic">
-              Note: This dossier summary is initialized with structural templates. In Phase 2, this section will automatically populate from the FastAPI Python AI Classification pipeline.
+            {/* Professional Summary Paragraph */}
+            <div className="space-y-1.5">
+              <span className="block text-[10px] text-slate-500 uppercase tracking-wider">AI Case Narrative Summary</span>
+              <p className="text-xs text-slate-300 leading-relaxed font-semibold bg-gov-navy/40 p-4 border border-gov-blue/10 rounded">
+                {caseData.ai_summary || 'No AI case summary generated.'}
+              </p>
+            </div>
+
+            {/* Reasons and Recommendations columns */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Reasons */}
+              <div className="p-3 bg-gov-navy/40 border border-gov-blue/10 rounded">
+                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Flagged Anomaly Classifications</span>
+                {caseData.reasons && caseData.reasons.length > 0 ? (
+                  <ul className="space-y-1.5 text-[11px] text-slate-400 pl-3 list-disc">
+                    {caseData.reasons.map((reason, idx) => (
+                      <li key={idx} className="leading-tight">{reason}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-[11px] text-slate-500 italic">No significant fraud indicators detected.</p>
+                )}
+              </div>
+
+              {/* Recommendation */}
+              <div className="p-3 bg-gov-navy/40 border border-gov-blue/10 rounded">
+                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-2">Audit Action Plan</span>
+                <p className="text-[11px] font-semibold text-gov-gold leading-relaxed">
+                  {caseData.recommendation || 'No AI explanation available'}
+                </p>
+              </div>
             </div>
           </div>
 

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const csv = require('csv-parser');
 const { query, pool } = require('../config/db');
+const aiService = require('../services/aiService');
 
 // Helper to normalize header keys
 const normalizeKey = (key) => {
@@ -22,6 +23,9 @@ const uploadCSV = async (req, res, next) => {
   let importedCount = 0;
   let duplicatesCount = 0;
   let failedCount = 0;
+  let totalRiskScore = 0;
+  let highRiskCount = 0;
+  let aiAnalyzedCount = 0;
 
   try {
     // 1. Read and parse CSV
@@ -70,9 +74,6 @@ const uploadCSV = async (req, res, next) => {
       const purpose = row.purpose || row.description || '';
       const dateStr = row.date || row.transaction_date || '';
       const statusRaw = row.status || row.approval_status || 'Pending';
-      const riskScoreStr = row.risk_score || row.riskscore || '0';
-      const fraudStatusRaw = row.fraud_status || row.fraudstatus || 'unflagged';
-      const fraudReasonsStr = row.fraud_reasons || row.reasons || '';
 
       // Validation 1: Required columns
       const missingFields = [];
@@ -134,16 +135,16 @@ const uploadCSV = async (req, res, next) => {
       const validStatuses = ['Pending', 'Approved', 'Rejected'];
       const status = validStatuses.find(s => s.toLowerCase() === statusRaw.toLowerCase()) || 'Pending';
 
-      // 3. Insert record into PostgreSQL marked as Pending Analysis, Not Evaluated, NULL risk score
+      // 3. Initial insertion into PostgreSQL
       const insertQuery = `
         INSERT INTO financial_records (
           record_number, department, vendor, invoice_number, payment_method,
-          amount, purpose, date, status, risk_score, fraud_status, ai_status, fraud_reasons
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+          amount, purpose, date, status, risk_score, fraud_status, ai_status, fraud_reasons, prediction, confidence, recommendation
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         RETURNING *;
       `;
 
-      await query(insertQuery, [
+      const insertRes = await query(insertQuery, [
         finalRecordNumber,
         department,
         vendor,
@@ -153,31 +154,102 @@ const uploadCSV = async (req, res, next) => {
         purpose,
         formattedDate,
         status,
-        null,               // Risk Score = NULL
-        'Not Evaluated',    // Fraud Status = Not Evaluated
-        'Pending Analysis', // AI Status = Pending Analysis
-        []
+        null,               // Default Risk Score = NULL
+        'Not Evaluated',    // Default Fraud Status = Not Evaluated
+        'Pending',          // Default AI Status = Pending
+        '[]',               // Default fraud_reasons = [] (JSONB)
+        'Not Evaluated',
+        null,
+        'No AI explanation available'
       ]);
 
+      const insertedRecord = insertRes.rows[0];
       importedCount++;
-      // Note: Fraud alerts are NOT created automatically during CSV upload.
-      // Alerts will only be generated after AI analysis module is executed.
+
+      // 4. Automatically invoke AI Microservice (predictFraudRisk)
+      const aiResult = await aiService.predictFraudRisk({
+        record_number: finalRecordNumber,
+        department,
+        vendor,
+        invoice_number,
+        payment_method,
+        amount: parsedAmount,
+        purpose,
+        date: formattedDate,
+        status,
+      });
+
+      if (aiResult) {
+        const { risk_score, prediction, confidence, reasons, recommendation } = aiResult;
+        const isHighRisk = risk_score >= 70;
+        const fraudStatus = isHighRisk ? 'flagged' : 'unflagged';
+        const aiStatus = 'Completed';
+
+        // Update financial_records with AI prediction output
+        await query(
+          `UPDATE financial_records 
+           SET risk_score = $1, fraud_status = $2, ai_status = $3, fraud_reasons = $4, prediction = $5, confidence = $6, recommendation = $7
+           WHERE id = $8`,
+          [risk_score, fraudStatus, aiStatus, JSON.stringify(reasons), prediction, confidence, recommendation, insertedRecord.id]
+        );
+
+        aiAnalyzedCount++;
+        totalRiskScore += risk_score;
+        if (isHighRisk) highRiskCount++;
+
+        // If High Risk (risk_score >= 70), automatically create Fraud Alert and Investigation Case
+        if (isHighRisk) {
+          const alertRes = await query(
+            `INSERT INTO fraud_alerts (financial_record_id, risk_score, reasons, prediction, confidence, recommendation, status)
+             VALUES ($1, $2, $3, $4, $5, $6, 'New')
+             RETURNING id`,
+            [insertedRecord.id, risk_score, JSON.stringify(reasons), prediction, confidence, recommendation]
+          );
+
+          const alertId = alertRes.rows[0].id;
+
+          // Auto-create Investigation Case if one does not exist
+          const caseCheck = await query('SELECT * FROM investigations WHERE fraud_alert_id = $1', [alertId]);
+          if (caseCheck.rows.length === 0) {
+            const initialNotes = [
+              {
+                author: 'AI Microservice Integration',
+                text: `Investigation opened. Case auto-created from AI Anomaly Detection (${prediction}, Risk: ${risk_score}%, Confidence: ${confidence}%).`,
+                timestamp: new Date().toISOString()
+              }
+            ];
+
+            const aiSummary = `This transaction has been evaluated as ${prediction} with a statistical confidence level of ${confidence}%. The diagnostic models flagged the record due to the following specific anomalies: ${reasons.join(', ')}. The primary integrity recommendation is: ${recommendation}`;
+
+            await query(
+              'INSERT INTO investigations (fraud_alert_id, status, ai_summary, recommendation, case_notes) VALUES ($1, $2, $3, $4, $5)',
+              [alertId, 'Open', aiSummary, recommendation, JSON.stringify(initialNotes)]
+            );
+          }
+        }
+      }
     }
 
-    // 4. Log to Import History table
+    // 5. Log to Import History table
     await query(
       `INSERT INTO import_history (file_name, upload_time, imported_records, duplicate_records, failed_records)
        VALUES ($1, CURRENT_TIMESTAMP, $2, $3, $4)`,
       [req.file.originalname, importedCount, duplicatesCount, failedCount]
     );
 
-    // 5. Return Summary Response
+    // 6. Return Summary Response
+    const averageRiskScore = aiAnalyzedCount > 0 ? Math.round(totalRiskScore / aiAnalyzedCount) : 0;
+    const aiCompleted = aiAnalyzedCount > 0;
+
     res.status(200).json({
       success: true,
       imported: importedCount,
       duplicates: duplicatesCount,
       failed: failedCount,
-      errors: errors
+      averageRiskScore,
+      highRiskCount,
+      aiCompleted,
+      errors
     });
 
   } catch (error) {

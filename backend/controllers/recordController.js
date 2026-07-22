@@ -1,4 +1,5 @@
 const { query } = require('../config/db');
+const aiService = require('../services/aiService');
 
 // @desc    Get all financial records (paginated with search & filters)
 // @route   GET /api/records
@@ -154,8 +155,8 @@ const createRecord = async (req, res, next) => {
     const insertQuery = `
       INSERT INTO financial_records (
         record_number, department, vendor, invoice_number, payment_method, 
-        amount, purpose, date, status, risk_score, fraud_status, fraud_reasons
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        amount, purpose, date, status, risk_score, fraud_status, fraud_reasons, prediction, confidence, recommendation
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *;
     `;
 
@@ -171,24 +172,70 @@ const createRecord = async (req, res, next) => {
       status,
       risk_score,
       fraud_status,
-      fraud_reasons
+      JSON.stringify(fraud_reasons),
+      'Not Evaluated',
+      null,
+      'No AI explanation available'
     ]);
 
     const newRecord = recordRes.rows[0];
 
-    // If new record is created with 'flagged' status or risk_score >= 70, auto create a fraud alert
-    if (newRecord.fraud_status === 'flagged' || newRecord.risk_score >= 70) {
-      // Ensure status is flagged
-      if (newRecord.fraud_status !== 'flagged') {
-        await query('UPDATE financial_records SET fraud_status = $1 WHERE id = $2', ['flagged', newRecord.id]);
-        newRecord.fraud_status = 'flagged';
+    // Invoke AI Microservice
+    const aiResult = await aiService.predictFraudRisk({
+      record_number,
+      department,
+      vendor,
+      invoice_number,
+      payment_method,
+      amount: parseFloat(amount),
+      purpose,
+      date,
+      status,
+    });
+
+    if (aiResult) {
+      const { risk_score: aiScore, prediction, confidence, reasons, recommendation } = aiResult;
+      const isHighRisk = aiScore >= 70;
+      const finalFraudStatus = isHighRisk ? 'flagged' : 'unflagged';
+      const finalAiStatus = 'Completed';
+
+      const updatedRes = await query(
+        `UPDATE financial_records 
+         SET risk_score = $1, fraud_status = $2, ai_status = $3, fraud_reasons = $4, prediction = $5, confidence = $6, recommendation = $7
+         WHERE id = $8
+         RETURNING *;`,
+        [aiScore, finalFraudStatus, finalAiStatus, JSON.stringify(reasons), prediction, confidence, recommendation, newRecord.id]
+      );
+
+      const updatedRecord = updatedRes.rows[0];
+
+      if (isHighRisk) {
+        const alertRes = await query(
+          `INSERT INTO fraud_alerts (financial_record_id, risk_score, reasons, prediction, confidence, recommendation, status)
+           VALUES ($1, $2, $3, $4, $5, $6, 'New')
+           RETURNING id`,
+          [updatedRecord.id, aiScore, JSON.stringify(reasons), prediction, confidence, recommendation]
+        );
+
+        const alertId = alertRes.rows[0].id;
+        const caseCheck = await query('SELECT * FROM investigations WHERE fraud_alert_id = $1', [alertId]);
+        if (caseCheck.rows.length === 0) {
+          const initialNotes = [
+            {
+              author: 'AI Microservice Integration',
+              text: `Investigation opened. Case auto-created from AI Anomaly Detection (${prediction}, Risk: ${aiScore}%, Confidence: ${confidence}%).`,
+              timestamp: new Date().toISOString()
+            }
+          ];
+          const aiSummary = `This transaction has been evaluated as ${prediction} with a statistical confidence level of ${confidence}%. The diagnostic models flagged the record due to the following specific anomalies: ${reasons.join(', ')}. The primary integrity recommendation is: ${recommendation}`;
+          await query(
+            'INSERT INTO investigations (fraud_alert_id, status, ai_summary, recommendation, case_notes) VALUES ($1, $2, $3, $4, $5)',
+            [alertId, 'Open', aiSummary, recommendation, JSON.stringify(initialNotes)]
+          );
+        }
       }
 
-      const alertReasons = newRecord.fraud_reasons.length > 0 ? newRecord.fraud_reasons : ['High risk score manual creation'];
-      await query(
-        'INSERT INTO fraud_alerts (financial_record_id, risk_score, reasons, status) VALUES ($1, $2, $3, $4)',
-        [newRecord.id, newRecord.risk_score, alertReasons, 'New']
-      );
+      return res.status(201).json(updatedRecord);
     }
 
     res.status(201).json(newRecord);
@@ -213,7 +260,10 @@ const updateRecord = async (req, res, next) => {
     status,
     risk_score,
     fraud_status,
-    fraud_reasons
+    fraud_reasons,
+    prediction,
+    confidence,
+    recommendation
   } = req.body;
 
   try {
@@ -238,8 +288,11 @@ const updateRecord = async (req, res, next) => {
         status = COALESCE($8, status),
         risk_score = COALESCE($9, risk_score),
         fraud_status = COALESCE($10, fraud_status),
-        fraud_reasons = COALESCE($11, fraud_reasons)
-      WHERE id = $12
+        fraud_reasons = COALESCE($11, fraud_reasons),
+        prediction = COALESCE($12, prediction),
+        confidence = COALESCE($13, confidence),
+        recommendation = COALESCE($14, recommendation)
+      WHERE id = $15
       RETURNING *;
     `;
 
@@ -254,7 +307,10 @@ const updateRecord = async (req, res, next) => {
       status,
       risk_score,
       fraud_status,
-      fraud_reasons,
+      fraud_reasons ? JSON.stringify(fraud_reasons) : null,
+      prediction,
+      confidence,
+      recommendation,
       id
     ]);
 
@@ -266,11 +322,14 @@ const updateRecord = async (req, res, next) => {
       const alertCheck = await query('SELECT * FROM fraud_alerts WHERE financial_record_id = $1', [id]);
       if (alertCheck.rows.length === 0) {
         await query(
-          'INSERT INTO fraud_alerts (financial_record_id, risk_score, reasons, status) VALUES ($1, $2, $3, $4)',
+          'INSERT INTO fraud_alerts (financial_record_id, risk_score, reasons, prediction, confidence, recommendation, status) VALUES ($1, $2, $3, $4, $5, $6, $7)',
           [
             id, 
             updatedRecord.risk_score, 
-            updatedRecord.fraud_reasons.length > 0 ? updatedRecord.fraud_reasons : ['Risk profile updated'], 
+            JSON.stringify(updatedRecord.fraud_reasons || []), 
+            updatedRecord.prediction || 'Not Evaluated',
+            updatedRecord.confidence || null,
+            updatedRecord.recommendation || 'No AI explanation available',
             'New'
           ]
         );

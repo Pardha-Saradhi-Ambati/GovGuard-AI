@@ -272,6 +272,67 @@ const Dashboard = () => {
 
       </div>
 
+      {/* Recent High Risk Records */}
+      <div className="glass-panel p-6 rounded-lg">
+        <div className="border-b border-gov-blue/20 pb-4 mb-4 flex justify-between items-center">
+          <h3 className="text-xs font-bold text-slate-200 uppercase tracking-widest">
+            Recent High Risk Records
+          </h3>
+          <span className="text-[10px] text-gov-crimson font-bold uppercase tracking-wider">Priority Attention Queue</span>
+        </div>
+        
+        {summary.recentHighRisk && summary.recentHighRisk.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-gov-blue/10 text-slate-400 font-bold uppercase tracking-wider text-[10px]">
+                  <th className="py-2.5">Record #</th>
+                  <th className="py-2.5">Department</th>
+                  <th className="py-2.5">Vendor</th>
+                  <th className="py-2.5 text-right">Amount</th>
+                  <th className="py-2.5 text-center">Risk Score</th>
+                  <th className="py-2.5 pl-4">Recommendation</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gov-blue/5">
+                {summary.recentHighRisk.map((rec) => (
+                  <tr key={rec.id} className="hover:bg-gov-navy/20 transition-colors">
+                    <td className="py-3 font-bold text-gov-accent">
+                      <Link to={`/records?search=${rec.record_number}`} className="hover:underline">
+                        {rec.record_number}
+                      </Link>
+                    </td>
+                    <td className="py-3 text-slate-300">{rec.department}</td>
+                    <td className="py-3 text-slate-300 font-medium">{rec.vendor}</td>
+                    <td className="py-3 text-right font-semibold text-slate-200">{formatCurrency(rec.amount)}</td>
+                    <td className="py-3 text-center">
+                      <span className="inline-block px-2 py-0.5 rounded text-[10px] font-black bg-gov-crimson/15 text-gov-crimson border border-gov-crimson/30">
+                        {rec.risk_score}%
+                      </span>
+                    </td>
+                    <td className="py-3 pl-4">
+                      {rec.recommendation ? (
+                        <span className="inline-block px-2.5 py-1 rounded text-[10px] font-bold bg-gov-gold/10 text-gov-gold border border-gov-gold/20">
+                          {rec.recommendation}
+                        </span>
+                      ) : (
+                        <span className="inline-block px-2.5 py-1 rounded text-[10px] font-bold bg-slate-800/40 text-slate-500 italic">
+                          No AI explanation available
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-6 text-slate-500 italic">
+            No recent high risk records detected.
+          </div>
+        )}
+      </div>
+
       {/* Quick Desk Action Items */}
       <div className="glass-panel p-6 rounded-lg">
         <div className="border-b border-gov-blue/20 pb-4 mb-4 flex justify-between items-center">

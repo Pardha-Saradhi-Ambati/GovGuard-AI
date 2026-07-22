@@ -8,7 +8,7 @@ const getInvestigations = async (req, res, next) => {
     let queryText = `
       SELECT 
         i.*,
-        fa.risk_score, fa.reasons, fa.status AS alert_status,
+        fa.risk_score, fa.reasons, fa.status AS alert_status, fa.prediction, fa.confidence,
         fr.record_number, fr.department, fr.vendor, fr.amount, fr.purpose, fr.date,
         u.username AS officer_username
       FROM investigations i
@@ -45,6 +45,7 @@ const getInvestigationById = async (req, res, next) => {
       SELECT 
         i.*,
         fa.id AS alert_id, fa.risk_score, fa.reasons, fa.status AS alert_status, fa.notes AS alert_notes,
+        fa.prediction, fa.confidence,
         fr.id AS financial_record_id, fr.record_number, fr.department, fr.vendor, fr.amount, fr.purpose, fr.date, fr.status AS record_status, fr.payment_method, fr.invoice_number,
         u.username AS officer_username, u.email AS officer_email
       FROM investigations i

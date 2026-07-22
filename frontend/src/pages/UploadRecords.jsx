@@ -273,7 +273,11 @@ const UploadRecords = () => {
         <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-400 text-xs font-bold flex items-center justify-between shadow-md">
           <div className="flex items-center space-x-3">
             <CheckCircle2 size={18} className="shrink-0 text-emerald-400" />
-            <span>Records ingested successfully and queued for AI analysis.</span>
+            <span>
+              {summary.aiCompleted 
+                ? "AI Fraud Analysis Completed Successfully" 
+                : "Records ingested successfully and queued for AI analysis."}
+            </span>
           </div>
           <Link 
             to="/records" 
@@ -295,36 +299,48 @@ const UploadRecords = () => {
                 Batch Ingestion Summary Report
               </h2>
             </div>
+            <span className={`px-2.5 py-1 rounded text-xs font-black uppercase tracking-wider border ${summary.aiCompleted ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' : 'text-gov-gold bg-gov-gold/10 border-gov-gold/30'}`}>
+              AI Status: {summary.aiCompleted ? 'Completed' : 'Pending'}
+            </span>
           </div>
 
           {/* Summary Stat Badges */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             
             {/* Imported Count */}
             <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Successfully Imported</span>
-                <h3 className="text-2xl font-black text-slate-100 mt-1">{summary.imported} Records</h3>
+                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Imported Records</span>
+                <h3 className="text-2xl font-black text-slate-100 mt-1">✓ {summary.imported} Records</h3>
               </div>
               <CheckCircle2 size={28} className="text-emerald-400" />
             </div>
 
-            {/* Duplicates Count */}
-            <div className="p-4 rounded-lg bg-gov-gold/10 border border-gov-gold/25 flex items-center justify-between">
+            {/* Average Risk Score */}
+            <div className="p-4 rounded-lg bg-gov-navy/60 border border-gov-blue/25 flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-bold text-gov-gold uppercase tracking-widest">Duplicates Skipped</span>
-                <h3 className="text-2xl font-black text-slate-100 mt-1">{summary.duplicates} Records</h3>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Average Risk Score</span>
+                <h3 className="text-2xl font-black text-slate-100 mt-1">{summary.averageRiskScore || 0}%</h3>
               </div>
-              <AlertTriangle size={28} className="text-gov-gold" />
+              <FileSpreadsheet size={28} className="text-gov-accent" />
             </div>
 
-            {/* Failed Count */}
+            {/* High Risk Count */}
             <div className="p-4 rounded-lg bg-gov-crimson/10 border border-gov-crimson/25 flex items-center justify-between">
               <div>
-                <span className="text-[10px] font-bold text-gov-crimson uppercase tracking-widest">Failed / Invalid</span>
-                <h3 className="text-2xl font-black text-slate-100 mt-1">{summary.failed} Records</h3>
+                <span className="text-[10px] font-bold text-gov-crimson uppercase tracking-widest">High Risk Count</span>
+                <h3 className="text-2xl font-black text-slate-100 mt-1">{summary.highRiskCount || 0} Flags</h3>
               </div>
-              <XCircle size={28} className="text-gov-crimson" />
+              <AlertTriangle size={28} className="text-gov-crimson" />
+            </div>
+
+            {/* AI Status */}
+            <div className="p-4 rounded-lg bg-gov-gold/10 border border-gov-gold/25 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] font-bold text-gov-gold uppercase tracking-widest">AI Analysis Status</span>
+                <h3 className="text-xl font-black text-slate-100 mt-1">{summary.aiCompleted ? 'Completed' : 'Pending'}</h3>
+              </div>
+              <CheckCircle2 size={28} className="text-gov-gold" />
             </div>
 
           </div>

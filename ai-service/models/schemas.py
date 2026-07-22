@@ -1,4 +1,4 @@
-from typing import Optional, Literal
+from typing import Optional, List, Literal
 from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 
@@ -47,12 +47,20 @@ class PredictionResponse(BaseModel):
     risk_score: int = Field(..., ge=0, le=100, description="Calculated fraud risk score percentage (0 to 100)")
     prediction: Literal["Low Risk", "Medium Risk", "High Risk"] = Field(..., description="Risk tier classification")
     confidence: int = Field(..., ge=0, le=100, description="Model prediction confidence score percentage (0 to 100)")
+    reasons: List[str] = Field(..., description="Human-readable fraud explanation bullet points")
+    recommendation: str = Field(..., description="Actionable recommendation for audit or payment processing")
 
     class Config:
         json_schema_extra = {
             "example": {
-                "risk_score": 85,
+                "risk_score": 92,
                 "prediction": "High Risk",
-                "confidence": 92
+                "confidence": 95,
+                "reasons": [
+                    "Very high payment amount exceeding ₹10,00,000 threshold",
+                    "High-value transfer routed via instant retail channel (UPI / IMPS)",
+                    "Isolation Forest statistical anomaly detected in spending pattern"
+                ],
+                "recommendation": "Hold payment immediately and assign to an investigation officer for full forensic audit."
             }
         }

@@ -116,6 +116,15 @@ const getDashboardSummary = async (req, res, next) => {
       LIMIT 5
     `);
 
+    // E. Recent High Risk Records
+    const recentHighRiskRes = await query(`
+      SELECT id, record_number, department, vendor, amount, risk_score, recommendation 
+      FROM financial_records 
+      WHERE risk_score >= 70 
+      ORDER BY date DESC, id DESC 
+      LIMIT 5
+    `);
+
     res.status(200).json({
       summary: {
         totalRecords,
@@ -124,6 +133,7 @@ const getDashboardSummary = async (req, res, next) => {
         totalInvestigations,
         resolvedCases,
         averageRiskScore,
+        recentHighRisk: recentHighRiskRes.rows
       },
       charts: {
         departmentFraud: deptFraudRes.rows,
