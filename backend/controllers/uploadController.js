@@ -2,6 +2,7 @@ const fs = require('fs');
 const csv = require('csv-parser');
 const { query, pool } = require('../config/db');
 const aiService = require('../services/aiService');
+const { createNotification } = require('../services/notificationService');
 
 // Helper to normalize header keys
 const normalizeKey = (key) => {
@@ -197,6 +198,17 @@ const uploadCSV = async (req, res, next) => {
         totalRiskScore += risk_score;
         if (isHighRisk) highRiskCount++;
 
+        // Trigger AI analysis complete notification
+        createNotification({
+          userId: req.user.id,
+          title: 'AI Analysis Completed',
+          message: `AI diagnostic run finished for record ${finalRecordNumber}.`,
+          type: 'ai_analysis',
+          priority: 'Low',
+          referenceType: 'record',
+          referenceId: insertedRecord.id
+        });
+
         // If High Risk (risk_score >= 70), automatically create Fraud Alert and Investigation Case
         if (isHighRisk) {
           const alertRes = await query(
@@ -207,6 +219,25 @@ const uploadCSV = async (req, res, next) => {
           );
 
           const alertId = alertRes.rows[0].id;
+
+          // Dispatch high risk and alert notifications
+          createNotification({
+            title: 'High Risk Transaction Detected',
+            message: `Record ${finalRecordNumber} flagged with risk score of ${risk_score}%.`,
+            type: 'high_risk',
+            priority: 'Critical',
+            referenceType: 'record',
+            referenceId: insertedRecord.id
+          });
+
+          createNotification({
+            title: 'Fraud Alert Created',
+            message: `New fraud alert generated for record ${finalRecordNumber}.`,
+            type: 'alert',
+            priority: 'High',
+            referenceType: 'alert',
+            referenceId: alertId
+          });
 
           // Auto-create Investigation Case if one does not exist
           const caseCheck = await query('SELECT * FROM investigations WHERE fraud_alert_id = $1', [alertId]);
@@ -236,6 +267,15 @@ const uploadCSV = async (req, res, next) => {
        VALUES ($1, CURRENT_TIMESTAMP, $2, $3, $4)`,
       [req.file.originalname, importedCount, duplicatesCount, failedCount]
     );
+
+    // Trigger CSV Import complete notification
+    createNotification({
+      userId: req.user.id,
+      title: 'CSV Upload Completed',
+      message: `Successfully imported ${importedCount} records from ${req.file.originalname}.`,
+      type: 'upload',
+      priority: 'Low'
+    });
 
     // 6. Return Summary Response
     const averageRiskScore = aiAnalyzedCount > 0 ? Math.round(totalRiskScore / aiAnalyzedCount) : 0;

@@ -1,4 +1,5 @@
 const { query } = require('../config/db');
+const { createNotification } = require('../services/notificationService');
 
 // @desc    Get all investigation cases (Admin sees all, Officers see their assigned cases)
 // @route   GET /api/investigations
@@ -123,6 +124,20 @@ const updateInvestigationStatus = async (req, res, next) => {
           "UPDATE financial_records SET fraud_status = 'resolved', status = 'Rejected' WHERE id = $1",
           [recordId]
         );
+
+        // Dispatch resolved notification
+        const recordRes = await query('SELECT record_number FROM financial_records WHERE id = $1', [recordId]);
+        const recordNumber = recordRes.rows[0]?.record_number || 'Unknown';
+
+        createNotification({
+          userId: updatedCase.officer_id || req.user.id,
+          title: 'Investigation Case Resolved',
+          message: `Investigation case on record ${recordNumber} has been marked resolved.`,
+          type: 'resolved',
+          priority: 'Low',
+          referenceType: 'investigation',
+          referenceId: id
+        });
       }
     } else {
       // Reopened case

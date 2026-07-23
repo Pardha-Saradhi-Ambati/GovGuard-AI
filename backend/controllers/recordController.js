@@ -1,4 +1,5 @@
 const { query } = require('../config/db');
+const { createNotification } = require('../services/notificationService');
 const aiService = require('../services/aiService');
 
 // @desc    Get all financial records (paginated with search & filters)
@@ -209,6 +210,17 @@ const createRecord = async (req, res, next) => {
 
       const updatedRecord = updatedRes.rows[0];
 
+      // Trigger AI analysis complete notification
+      createNotification({
+        userId: req.user.id,
+        title: 'AI Analysis Completed',
+        message: `AI diagnostic run finished for record ${record_number}.`,
+        type: 'ai_analysis',
+        priority: 'Low',
+        referenceType: 'record',
+        referenceId: updatedRecord.id
+      });
+
       if (isHighRisk) {
         const alertRes = await query(
           `INSERT INTO fraud_alerts (financial_record_id, risk_score, reasons, prediction, confidence, recommendation, status)
@@ -218,6 +230,26 @@ const createRecord = async (req, res, next) => {
         );
 
         const alertId = alertRes.rows[0].id;
+
+        // Dispatch high risk and alert notifications
+        createNotification({
+          title: 'High Risk Transaction Detected',
+          message: `Record ${record_number} flagged with risk score of ${aiScore}%.`,
+          type: 'high_risk',
+          priority: 'Critical',
+          referenceType: 'record',
+          referenceId: updatedRecord.id
+        });
+
+        createNotification({
+          title: 'Fraud Alert Created',
+          message: `New fraud alert generated for record ${record_number}.`,
+          type: 'alert',
+          priority: 'High',
+          referenceType: 'alert',
+          referenceId: alertId
+        });
+
         const caseCheck = await query('SELECT * FROM investigations WHERE fraud_alert_id = $1', [alertId]);
         if (caseCheck.rows.length === 0) {
           const initialNotes = [

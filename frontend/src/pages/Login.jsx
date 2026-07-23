@@ -4,7 +4,7 @@ import { AuthContext } from '../context/AuthContext';
 import { ShieldCheck, AlertCircle, Eye, EyeOff, Lock, User } from 'lucide-react';
 
 const Login = () => {
-  const { login, user, error: authError } = useContext(AuthContext);
+  const { login, loginWithGoogle, user, error: authError } = useContext(AuthContext);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -21,6 +21,46 @@ const Login = () => {
       navigate(from, { replace: true });
     }
   }, [user, navigate, from]);
+
+  const handleGoogleLoginResponse = async (response) => {
+    try {
+      setError('');
+      setLoading(true);
+      const idToken = response.credential;
+      await loginWithGoogle(idToken);
+      navigate(from, { replace: true });
+    } catch (err) {
+      setError(err.message || 'Google Sign-In failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const initGoogleGSI = () => {
+      /* global google */
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID || '10823482348-dummy.apps.googleusercontent.com',
+          callback: handleGoogleLoginResponse,
+        });
+
+        window.google.accounts.id.renderButton(
+          document.getElementById('google-signin-btn'),
+          { theme: 'outline', size: 'large', width: '380' }
+        );
+      }
+    };
+
+    if (window.google) {
+      initGoogleGSI();
+    } else {
+      const script = document.querySelector('script[src*="gsi/client"]');
+      if (script) {
+        script.addEventListener('load', initGoogleGSI);
+      }
+    }
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -148,6 +188,21 @@ const Login = () => {
               )}
             </button>
           </form>
+
+          {/* Google Login Divider */}
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gov-blue/20"></div>
+            </div>
+            <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-wider">
+              <span className="bg-gov-navy px-2 text-slate-400">Or Continue Verification With</span>
+            </div>
+          </div>
+
+          {/* Google Sign-In Button */}
+          <div className="flex justify-center w-full">
+            <div id="google-signin-btn" className="w-full max-w-[380px]"></div>
+          </div>
         </div>
 
         {/* Audit Warning */}

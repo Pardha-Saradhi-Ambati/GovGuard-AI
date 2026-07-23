@@ -64,6 +64,29 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithGoogle = async (googleToken) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await axios.post('/api/auth/google', { idToken: googleToken });
+      
+      const userToken = res.data.token;
+      const userData = res.data.user;
+      
+      localStorage.setItem('token', userToken);
+      setToken(userToken);
+      setUser(userData);
+      
+      return userData;
+    } catch (err) {
+      const errMsg = err.response?.data?.message || 'Google Sign-In failed.';
+      setError(errMsg);
+      throw new Error(errMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setToken(null);
@@ -71,7 +94,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, error, login, logout, checkUserLoggedIn }}>
+    <AuthContext.Provider value={{ user, token, loading, error, login, logout, loginWithGoogle, checkUserLoggedIn }}>
       {children}
     </AuthContext.Provider>
   );

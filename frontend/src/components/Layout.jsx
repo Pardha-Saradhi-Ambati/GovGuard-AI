@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
+import ChatAssistant from './ChatAssistant';
 
 const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -21,7 +22,7 @@ const Layout = () => {
         <Navbar toggleSidebar={toggleSidebar} />
 
         {/* Content area */}
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className="flex-1 p-6 overflow-y-auto relative">
           {/* Overlay to close sidebar on mobile */}
           {sidebarOpen && (
             <div 
@@ -34,6 +35,9 @@ const Layout = () => {
           <Outlet />
         </main>
       </div>
+
+      {/* Floating AI Assistant Chatbot */}
+      <ChatAssistant />
     </div>
   );
 };

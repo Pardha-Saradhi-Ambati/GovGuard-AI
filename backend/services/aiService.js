@@ -1,5 +1,6 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
+const { createNotification } = require('./notificationService');
 require('dotenv').config();
 
 const getAIServiceEndpoint = () => {
@@ -80,6 +81,13 @@ const predictFraudRisk = async (record) => {
         logger.warn(
           `[AI Service] AI service unavailable after ${maxAttempts} attempts. Final Status: Pending | Record ${payload.record_number || 'NEW'} saved normally.`
         );
+        // Dispatch global notification
+        createNotification({
+          title: 'AI Service Unavailable',
+          message: `AI prediction service failed to respond for record ${payload.record_number || 'NEW'}. It has been saved as pending evaluation.`,
+          type: 'ai_service_down',
+          priority: 'High'
+        });
         return null;
       }
     }

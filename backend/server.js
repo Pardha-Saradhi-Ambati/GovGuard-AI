@@ -13,6 +13,8 @@ const alertRoutes = require('./routes/alertRoutes');
 const investigationRoutes = require('./routes/investigationRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const chatRoutes = require('./routes/chatRoutes');
 
 // Initialize app
 const app = express();
@@ -44,6 +46,8 @@ app.use('/api/alerts', alertRoutes);
 app.use('/api/investigations', investigationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Root route
 app.get('/', (req, res) => {

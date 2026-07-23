@@ -1,4 +1,5 @@
 const { query } = require('../config/db');
+const { createNotification } = require('../services/notificationService');
 
 // @desc    Get all fraud alerts (with joined financial record details)
 // @route   GET /api/alerts
@@ -120,11 +121,44 @@ const updateAlert = async (req, res, next) => {
 
         const aiSummary = `This investigation is opened in response to fraud alert (Alert ID: ${id}) on record ${updatedAlert.financial_record_id}. Key anomalies detected include risk-score flag of ${updatedAlert.risk_score} due to reasons: ${updatedAlert.reasons.join(', ')}. Initial audit recommendations: verify legitimacy of vendor registration status, request original ledger logs, and confirm secondary manager authorizations.`;
 
-        await query(
-          'INSERT INTO investigations (fraud_alert_id, officer_id, status, ai_summary, case_notes) VALUES ($1, $2, $3, $4, $5)',
+        const insertCaseRes = await query(
+          'INSERT INTO investigations (fraud_alert_id, officer_id, status, ai_summary, case_notes) VALUES ($1, $2, $3, $4, $5) RETURNING id',
           [id, officerId, 'Open', aiSummary, JSON.stringify(initialNotes)]
         );
+        const investigationId = insertCaseRes.rows[0].id;
+
+        const recordRes = await query('SELECT record_number FROM financial_records WHERE id = $1', [updatedAlert.financial_record_id]);
+        const recordNumber = recordRes.rows[0]?.record_number || 'Unknown';
+
+        createNotification({
+          userId: officerId,
+          title: 'Investigation Case Assigned',
+          message: `You have been assigned to investigate alert on record ${recordNumber}.`,
+          type: 'assigned',
+          priority: 'Medium',
+          referenceType: 'investigation',
+          referenceId: investigationId
+        });
       }
+    }
+
+    // Dispatch assignment notification if a new officer is assigned explicitly (and not already caught by the auto-creation block)
+    if (targetOfficer && targetOfficer !== currentAlert.assigned_officer) {
+      const caseRes = await query('SELECT id FROM investigations WHERE fraud_alert_id = $1', [id]);
+      const investigationId = caseRes.rows[0]?.id || null;
+      
+      const recordRes = await query('SELECT record_number FROM financial_records WHERE id = $1', [updatedAlert.financial_record_id]);
+      const recordNumber = recordRes.rows[0]?.record_number || 'Unknown';
+
+      createNotification({
+        userId: targetOfficer,
+        title: 'Investigation Case Assigned',
+        message: `You have been assigned to investigate alert on record ${recordNumber}.`,
+        type: 'assigned',
+        priority: 'Medium',
+        referenceType: 'investigation',
+        referenceId: investigationId
+      });
     }
 
     res.status(200).json(updatedAlert);

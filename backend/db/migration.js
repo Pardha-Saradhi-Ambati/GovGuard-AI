@@ -76,6 +76,32 @@ async function runMigration() {
               ALTER TABLE investigations ADD COLUMN recommendation TEXT DEFAULT '';
               RAISE NOTICE 'Added investigations.recommendation.';
           END IF;
+
+          -- Add google_id column to users if not exists
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='google_id') THEN
+              ALTER TABLE users ADD COLUMN google_id VARCHAR(255) UNIQUE;
+              RAISE NOTICE 'Added users.google_id.';
+          END IF;
+
+          -- Add profile_picture column to users if not exists
+          IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='profile_picture') THEN
+              ALTER TABLE users ADD COLUMN profile_picture TEXT DEFAULT '';
+              RAISE NOTICE 'Added users.profile_picture.';
+          END IF;
+
+          -- Create notifications table if not exists
+          CREATE TABLE IF NOT EXISTS notifications (
+              id SERIAL PRIMARY KEY,
+              user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+              title VARCHAR(255) NOT NULL,
+              message TEXT NOT NULL,
+              type VARCHAR(50) NOT NULL,
+              priority VARCHAR(50) DEFAULT 'Low',
+              is_read BOOLEAN DEFAULT FALSE,
+              reference_type VARCHAR(50),
+              reference_id INTEGER,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          );
       END $$;
     `;
 
